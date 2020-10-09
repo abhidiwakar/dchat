@@ -5,7 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "DChat - Debug",
+            "name": "DChat - Debug - IOS",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "debug"
+        },
+        {
+            "name": "DChat - Debug - Android",
             "request": "launch",
             "type": "dart",
             "flutterMode": "debug"

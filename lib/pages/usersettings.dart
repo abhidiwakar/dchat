@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:DChat/constants/const.dart';
 import 'package:DChat/helpers/corehelper.dart';
 import 'package:DChat/pages/namechangepage.dart';
+import 'package:DChat/pages/passwordchangepage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -337,7 +338,14 @@ class _UserSettingsState extends State<UserSettings> {
                   ListTile(
                     title: Text('Change Password'),
                     leading: Icon(Icons.lock_outline),
-                    onTap: () {},
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChangePasswordPage(
+                          documentReference: snap.data.reference,
+                        ),
+                      ),
+                    ),
                   ),
                   Container(
                     width: double.infinity,
