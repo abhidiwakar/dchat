@@ -1,6 +1,8 @@
 import 'package:DChat/constants/const.dart';
 import 'package:DChat/helpers/corehelper.dart';
 import 'package:DChat/pages/homepage.dart';
+import 'package:DChat/pages/passwordresetpage.dart';
+import 'package:DChat/pages/userregistrationpage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -73,14 +75,28 @@ class _AuthenticationState extends State<Authentication> {
           .signInWithEmailAndPassword(email: email, password: password);
       User user = authResult.user;
       if (user != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MyHomePage(
-              title: 'DChat',
+        if (user.emailVerified) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MyHomePage(
+                title: 'DChat',
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          await user.sendEmailVerification();
+          await FirebaseAuth.instance.signOut();
+          _isAuthentication = false;
+          if (mounted) {
+            setState(() {});
+          }
+          CoreHelper().showDefaultActionDialog(
+            context,
+            'Your email verification is pending yet. We\'ve sent you a link to your registered email address. Please follow the link to verify your account.',
+            title: 'Pending email verification',
+          );
+        }
       } else {
         CoreHelper().showToast(context, _fToast, SOMETHING_WENT_WRONG,
             titleForIOS: 'Error');
@@ -91,7 +107,7 @@ class _AuthenticationState extends State<Authentication> {
       }
     } on FirebaseAuthException {
       CoreHelper().showToast(context, _fToast,
-          'Invalid username or password! Please try agin with correct details.',
+          'Invalid email or password! Please try agin with correct details.',
           titleForIOS: 'Error');
       _isAuthentication = false;
       if (mounted) {
@@ -204,17 +220,18 @@ class _AuthenticationState extends State<Authentication> {
                             hintText: 'Your password',
                             prefixIcon: Icon(Icons.vpn_key),
                           ),
+                          onSubmitted: (_) {
+                            if (_emailController.text.trim().isNotEmpty &&
+                                _passwordController.text.isNotEmpty)
+                              _authenticateUser();
+                          },
                         ),
                         SizedBox(height: 7.0),
                         MaterialButton(
                           minWidth: double.infinity,
-                          // shape: RoundedRectangleBorder(
-                          //   borderRadius: BorderRadius.circular(
-                          //     10.0,
-                          //   ),
-                          // ),
                           height: 45.0,
-                          onPressed: _authenticateUser,
+                          onPressed:
+                              _isAuthentication ? () {} : _authenticateUser,
                           child: Row(
                             children: [
                               Expanded(
@@ -230,7 +247,8 @@ class _AuthenticationState extends State<Authentication> {
                                         child: CircularProgressIndicator(
                                           strokeWidth: 3,
                                           valueColor: AlwaysStoppedAnimation(
-                                              Colors.white),
+                                            Colors.white,
+                                          ),
                                         ),
                                       ),
                                     )
@@ -238,7 +256,30 @@ class _AuthenticationState extends State<Authentication> {
                             ],
                           ),
                           color: Theme.of(context).primaryColor,
-                        )
+                        ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            FlatButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => UserRegistrationPage(),
+                                ),
+                              ),
+                              child: Text('Not a user yet?'),
+                            ),
+                            FlatButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PasswordResetPage(),
+                                ),
+                              ),
+                              child: Text('Forgot Password?'),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
