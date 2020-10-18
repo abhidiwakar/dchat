@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:DChat/helpers/corehelper.dart';
 import 'package:DChat/pages/authentication.dart';
 import 'package:DChat/pages/chatpage.dart';
+import 'package:DChat/pages/newchatpage.dart';
+import 'package:DChat/pages/newfriends.dart';
 import 'package:DChat/pages/usersettings.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -71,6 +73,22 @@ class _MyHomePageState extends State<MyHomePage> {
           PopupMenuButton(
             onSelected: (value) {
               switch (value) {
+                case 'new_friend':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NewFriendsPage(),
+                    ),
+                  );
+                  break;
+                case 'new_chat':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => NewChatPage(),
+                    ),
+                  );
+                  break;
                 case 'settings':
                   //print('Settings under development');
                   Navigator.push(
@@ -104,7 +122,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       SizedBox(
                         width: 10.0,
                       ),
-                      Text('New Friends'),
+                      Text('Friend Request'),
                     ],
                   ),
                 ),
@@ -164,7 +182,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       var doc = snapshot.data.docs[index];
                       var members = doc.get('members') as List<dynamic>;
                       members.remove(_currentUserId);
-                      var chatsStream = snapshot.data.docs[0].reference
+                      var chatsStream = snapshot.data.docs[index].reference
                           .collection('chats')
                           .orderBy('time')
                           .snapshots();
@@ -191,11 +209,24 @@ class _MyHomePageState extends State<MyHomePage> {
                                   );
                                 },
                                 leading: ClipOval(
-                                  child: CachedNetworkImage(
-                                    imageUrl: snapshot.data.get('dp_url'),
-                                    height: 40.0,
-                                    width: 40.0,
-                                  ),
+                                  child: snapshot.data.get('dp_url') != null &&
+                                          snapshot.data.get('dp_url') != ''
+                                      ? CachedNetworkImage(
+                                          imageUrl: snapshot.data.get('dp_url'),
+                                          height: 40.0,
+                                          width: 40.0,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Container(
+                                          height: 40.0,
+                                          width: 40.0,
+                                          color: Colors.grey.shade800,
+                                          child: Center(
+                                            child: Icon(
+                                              Icons.person_outline,
+                                            ),
+                                          ),
+                                        ),
                                 ),
                                 title: Text(snapshot.data.get('name')),
                                 subtitle: StreamBuilder<QuerySnapshot>(
@@ -211,7 +242,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                               lastChatDoc.data()['ready_by']
                                                   as List<dynamic>;
                                           if (lastChatDoc.get('type') ==
-                                              'message') {
+                                                  'message' ||
+                                              lastChatDoc.get('type') ==
+                                                  'request') {
                                             return Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
@@ -224,6 +257,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                                                 .get('message')
                                                         : lastChatDoc
                                                             .get('message'),
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 lastChatDoc.get('sender') ==
@@ -275,7 +311,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           },
                           stream: FirebaseFirestore.instance
                               .collection('users')
-                              .doc(members[0])
+                              .doc(members.isNotEmpty ? members[0] : '----')
                               .snapshots(),
                         );
                       } else {

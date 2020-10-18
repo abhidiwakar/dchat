@@ -90,6 +90,10 @@ class ChatBox extends StatelessWidget {
                 children: [
                   Text(
                     dataDocs.get('message'),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyText1
+                        .copyWith(fontSize: 16.0),
                   ),
                   Text(
                     DateFormat('hh:mm a').format(timestamp.toDate().toLocal()),

@@ -86,6 +86,22 @@ class CoreHelper {
     }
   }
 
+  Widget getSomethingWrongWidget() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.warning,
+          color: Colors.yellow,
+        ),
+        SizedBox(
+          height: 10.0,
+        ),
+        Text('Something went wrong.'),
+      ],
+    );
+  }
+
   showDefaultActionDialog(BuildContext context, String message,
       {String title = 'Info'}) {
     if (Platform.isIOS) {
@@ -124,5 +140,17 @@ class CoreHelper {
     RegExp regExp = RegExp(
         r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,253}[a-zA-Z0-9])?)*$");
     return regExp.hasMatch(email);
+  }
+
+  String getHiddenEmail(String email) {
+    String tempEmail = email;
+    email = email.substring(0, email.lastIndexOf('@'));
+    int hideLength = (email.length * 70 / 100).floor();
+    email = email.substring(0, email.length - hideLength);
+    for (var i = 0; i < hideLength; i++) {
+      email += '*';
+    }
+    email += tempEmail.substring(tempEmail.lastIndexOf('@'), tempEmail.length);
+    return email;
   }
 }

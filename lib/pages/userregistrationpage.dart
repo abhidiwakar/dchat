@@ -111,6 +111,7 @@ class _UserRegistrationPageState extends State<UserRegistrationPage> {
           'email': user.email,
           'hidden_search_dp': false,
           'hidden_search_email': true,
+          'connections': [],
           'id': user.uid,
           'name': name,
         }).then((value) async {

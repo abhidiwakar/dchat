@@ -17,6 +17,12 @@
             "flutterMode": "debug"
         },
         {
+            "name": "DChat - Debug2 - Android",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "debug"
+        },
+        {
             "name": "DChat - Profile",
             "request": "launch",
             "type": "dart",

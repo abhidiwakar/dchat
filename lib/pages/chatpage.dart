@@ -6,6 +6,7 @@ import 'package:DChat/widgets/chatbox.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:calendar_time/calendar_time.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -174,9 +175,34 @@ class _ChatPageState extends State<ChatPage> {
     _isFirstScroll = false;
   }
 
+  _acceptRequest(DocumentReference documentReference) async {
+    await documentReference.update({'accepted': true});
+  }
+
+  _rejectRequest(DocumentReference documentReference) async {
+    //await documentReference.update({'rejected': true});
+    FirebaseFirestore.instance.collection('users').doc(widget.opUserId).update({
+      'connections': FieldValue.arrayRemove([widget.currentUserId])
+    });
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.currentUserId)
+        .update({
+      'connections': FieldValue.arrayRemove([widget.opUserId])
+    });
+    print(widget.docId);
+    Navigator.pop(context);
+
+    await documentReference.delete();
+    await FirebaseFirestore.instance
+        .collection('chats')
+        .doc(widget.docId)
+        .delete();
+  }
+
   @override
   void dispose() {
-    _stream.close();
+    _stream.close().then((_) => print('Chats stream closed'));
     super.dispose();
   }
 
@@ -191,11 +217,23 @@ class _ChatPageState extends State<ChatPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ClipOval(
-                child: CachedNetworkImage(
-                  imageUrl: widget.initialDpUrl,
-                  height: 30.0,
-                  width: 30.0,
-                ),
+                child: widget.initialDpUrl != null && widget.initialDpUrl != ''
+                    ? CachedNetworkImage(
+                        imageUrl: widget.initialDpUrl,
+                        height: 30.0,
+                        width: 30.0,
+                        fit: BoxFit.cover,
+                      )
+                    : Container(
+                        height: 30.0,
+                        width: 30.0,
+                        color: Colors.grey.shade800,
+                        child: Center(
+                          child: Icon(
+                            Icons.person_outline,
+                          ),
+                        ),
+                      ),
               ),
               SizedBox(
                 width: 10.0,
@@ -208,195 +246,204 @@ class _ChatPageState extends State<ChatPage> {
           padding: const EdgeInsets.symmetric(
             horizontal: 10.0,
           ),
-          child: Column(
-            children: [
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  builder: (_, snap) {
-                    if (snap.connectionState == ConnectionState.active) {
-                      var dataDocs = snap.data.docs;
-                      if (_scrollController != null &&
-                          _scrollController.hasClients &&
-                          _scrollController.offset != null &&
-                          _scrollController.position != null &&
-                          _scrollController.position.maxScrollExtent != null &&
-                          _scrollController.offset !=
-                              _scrollController.position.maxScrollExtent) {
-                        print('Can handle scroll');
-                        print('Current Offset: ${_scrollController.offset}');
-                        print(
-                            'Max Offset: ${_scrollController.position.maxScrollExtent}');
-                        print(
-                            'Scroll Probability: ${100 - ((_scrollController.offset * 100) / _scrollController.position.maxScrollExtent)}');
-                        if (dataDocs[dataDocs.length - 1].get('sender') !=
-                            widget.currentUserId) {
-                          if ((100 -
-                                  ((_scrollController.offset * 100) /
-                                          _scrollController
-                                              .position.maxScrollExtent)
-                                      .floor()) >
-                              1.5) {
-                            _newMessageCounter++;
-                            print('New message arrived');
-                            Fluttertoast.showToast(
-                              msg: _newMessageCounter > 1
-                                  ? 'New message arrived ($_newMessageCounter)'
-                                  : 'New message arrived',
-                              backgroundColor: Theme.of(context).primaryColor,
-                              gravity: ToastGravity.TOP,
-                              textColor: Colors.white,
-                              toastLength: Toast.LENGTH_LONG,
-                            );
-                          }
-                        }
-                      } else {
-                        _scrollToMax(smoothScroll: true);
-                      }
-                      return Column(
-                        children: [
-                          Expanded(
-                            child: GroupedListView<dynamic, String>(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.only(bottom: 20.0),
-                              elements: dataDocs,
-                              groupBy: (element) => element['time']
-                                  .toDate()
-                                  .toLocal()
-                                  .toString()
-                                  .substring(0, 10),
-                              sort: false,
-                              groupSeparatorBuilder: (String groupByValue) =>
-                                  Container(
-                                margin: const EdgeInsets.only(
-                                  top: 5.0,
-                                  bottom: 10.0,
-                                ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 10.0),
-                                width: double.infinity,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 5.0,
-                                        horizontal: 10.0,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(
-                                          50.0,
-                                        ),
-                                        color: Colors.grey.shade900,
-                                      ),
-                                      child: Text(
-                                        CalendarTime(
-                                          DateTime.parse(
-                                            groupByValue.trim() + ' 01:00:04Z',
-                                          ),
-                                        ).isToday
-                                            ? 'Today'
-                                            : CalendarTime(
-                                                DateTime.parse(
-                                                  groupByValue + ' 01:00:04Z',
-                                                ),
-                                              ).isYesterday
-                                                ? 'Yesterday'
-                                                : groupByValue,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              itemBuilder: (context, dynamic element) {
-                                Map<String, dynamic> dmpa =
-                                    (element as DocumentSnapshot).data();
-                                if (dmpa['is_deleted'] != null &&
-                                    (dmpa['is_deleted'] as List<dynamic>)
-                                        .contains(widget.currentUserId)) {
-                                  return Container();
-                                } else {
-                                  return ChatBox(
-                                    dataDocs: element,
-                                    currentUserId: widget.currentUserId,
-                                    longPressHandler: _longPressHandler,
-                                  );
-                                }
-                              },
-                              useStickyGroupSeparators: false,
-                              stickyHeaderBackgroundColor: Colors.transparent,
-                              floatingHeader: false,
-                              //order: GroupedListOrder.DESC,
-                            ),
-                          ),
-                        ],
+          child: StreamBuilder<QuerySnapshot>(
+            builder: (_, snap) {
+              if (snap.connectionState == ConnectionState.active) {
+                var dataDocs = snap.data.docs;
+                if (_scrollController != null &&
+                    _scrollController.hasClients &&
+                    _scrollController.offset != null &&
+                    _scrollController.position != null &&
+                    _scrollController.position.maxScrollExtent != null &&
+                    _scrollController.offset !=
+                        _scrollController.position.maxScrollExtent) {
+                  print('Can handle scroll');
+                  print('Current Offset: ${_scrollController.offset}');
+                  print(
+                      'Max Offset: ${_scrollController.position.maxScrollExtent}');
+                  print(
+                      'Scroll Probability: ${100 - ((_scrollController.offset * 100) / _scrollController.position.maxScrollExtent)}');
+                  if (dataDocs[dataDocs.length - 1].get('sender') !=
+                      widget.currentUserId) {
+                    if ((100 -
+                            ((_scrollController.offset * 100) /
+                                    _scrollController.position.maxScrollExtent)
+                                .floor()) >
+                        1.5) {
+                      _newMessageCounter++;
+                      print('New message arrived');
+                      Fluttertoast.showToast(
+                        msg: _newMessageCounter > 1
+                            ? 'New message arrived ($_newMessageCounter)'
+                            : 'New message arrived',
+                        backgroundColor: Theme.of(context).primaryColor,
+                        gravity: ToastGravity.TOP,
+                        textColor: Colors.white,
+                        toastLength: Toast.LENGTH_LONG,
                       );
-                    } else if (snap.connectionState ==
-                        ConnectionState.waiting) {
-                      return Center(
-                        child: CoreHelper().getCircleProgressIndicator(),
-                      );
-                    } else {
-                      CoreHelper().showDefaultActionDialog(
-                        context,
-                        'Something went wrong.',
-                        title: 'Error',
-                      );
-                      return Container();
                     }
-                  },
-                  stream: _stream.stream,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(
-                  bottom: 8.0,
-                  top: 5.0,
-                ),
-                child: Row(
+                  }
+                } else {
+                  _scrollToMax(smoothScroll: true);
+                }
+                return Column(
                   children: [
                     Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade900,
-                          borderRadius: BorderRadius.circular(
-                            5.0,
+                      child: GroupedListView<dynamic, String>(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.only(bottom: 20.0),
+                        elements: dataDocs,
+                        groupBy: (element) => element['time']
+                            .toDate()
+                            .toLocal()
+                            .toString()
+                            .substring(0, 10),
+                        sort: false,
+                        groupSeparatorBuilder: (String groupByValue) =>
+                            Container(
+                          margin: const EdgeInsets.only(
+                            top: 5.0,
+                            bottom: 10.0,
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 10.0),
+                          width: double.infinity,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 10.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(
+                                    50.0,
+                                  ),
+                                  color: Colors.grey.shade900,
+                                ),
+                                child: Text(
+                                  CalendarTime(
+                                    DateTime.parse(
+                                      groupByValue.trim() + ' 01:00:04Z',
+                                    ),
+                                  ).isToday
+                                      ? 'Today'
+                                      : CalendarTime(
+                                          DateTime.parse(
+                                            groupByValue + ' 01:00:04Z',
+                                          ),
+                                        ).isYesterday
+                                          ? 'Yesterday'
+                                          : groupByValue,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: TextField(
-                          focusNode: _messageFocusNode,
-                          controller: _messageController,
-                          keyboardType: TextInputType.multiline,
-                          maxLines: 3,
-                          minLines: 1,
-                          onTap: () =>
-                              _scrollToMax(duration: 300, smoothScroll: true),
-                          //enabled: !_isSending,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10.0,
-                              vertical: 4.0,
-                            ),
-                            border: InputBorder.none,
-                            hintText: 'Type a message to send...',
-                          ),
-                        ),
+                        itemBuilder: (context, dynamic element) {
+                          Map<String, dynamic> dmpa =
+                              (element as DocumentSnapshot).data();
+                          if (dmpa['is_deleted'] != null &&
+                              (dmpa['is_deleted'] as List<dynamic>)
+                                  .contains(widget.currentUserId)) {
+                            return Container();
+                          } else {
+                            int currentDocIndex = dataDocs
+                                .indexWhere((el) => element.id == el.id);
+                            int lastIndex = -1;
+                            int nextIndex = -1;
+                            if (currentDocIndex > 0) {
+                              lastIndex = currentDocIndex - 1;
+                            }
+                            if (currentDocIndex < dataDocs.length) {
+                              nextIndex = currentDocIndex + 1;
+                            }
+                            return ChatBox(
+                              dataDocs: element,
+                              previousSender:
+                                  dataDocs.asMap().containsKey(lastIndex)
+                                      ? dataDocs[lastIndex].get('sender')
+                                      : '',
+                              nextSender:
+                                  dataDocs.asMap().containsKey(nextIndex)
+                                      ? dataDocs[nextIndex].get('sender')
+                                      : '',
+                              currentUserId: widget.currentUserId,
+                              longPressHandler: _longPressHandler,
+                            );
+                          }
+                        },
+                        useStickyGroupSeparators: false,
+                        stickyHeaderBackgroundColor: Colors.transparent,
+                        floatingHeader: false,
+                        //order: GroupedListOrder.DESC,
                       ),
                     ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.send,
-                        color: Theme.of(context).primaryColor,
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: 8.0,
+                        top: 5.0,
                       ),
-                      onPressed: _isSending ? null : _sendMessage,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade900,
+                                borderRadius: BorderRadius.circular(
+                                  5.0,
+                                ),
+                              ),
+                              child: TextField(
+                                focusNode: _messageFocusNode,
+                                controller: _messageController,
+                                keyboardType: TextInputType.multiline,
+                                maxLines: 3,
+                                minLines: 1,
+                                onTap: () => _scrollToMax(
+                                    duration: 300, smoothScroll: true),
+                                //enabled: !_isSending,
+                                decoration: InputDecoration(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10.0,
+                                    vertical: 4.0,
+                                  ),
+                                  border: InputBorder.none,
+                                  hintText: 'Type a message to send...',
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.send,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                            onPressed: _isSending ? null : _sendMessage,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
-                ),
-              ),
-            ],
+                );
+              } else if (snap.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: CoreHelper().getCircleProgressIndicator(),
+                );
+              } else {
+                CoreHelper().showDefaultActionDialog(
+                  context,
+                  'Something went wrong.',
+                  title: 'Error',
+                );
+                return Container();
+              }
+            },
+            stream: _stream.stream,
           ),
         ),
       ),
